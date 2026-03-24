@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>ImInvisible Pro v6.0 - Ultimate Bot Control Center</title>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        :root {
+            --bg-primary: #0a0a0a;
+            --bg-secondary: #0f0f0f;
+            --bg-tertiary: #111;
+            --border: #2a2a2a;
+            --text: #e0e0e0;
+            --text-muted: #666;
+            --accent: #00d4ff;
+            --accent-secondary: #ff6b9d;
+            --success: #00ff88;
+            --danger: #ff4444;
+            --warning: #ffaa00;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text);
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        /* Темы */
+        body.theme-dark { --bg-primary: #0a0a0a; --bg-secondary: #0f0f0f; --bg-tertiary: #111; --text: #e0e0e0; }
+        body.theme-light { --bg-primary: #f0f0f0; --bg-secondary: #e8e8e8; --bg-tertiary: #fff; --text: #1a1a1a; --text-muted: #666; --border: #ddd; }
+        body.theme-cyber { --bg-primary: #0a0a2a; --bg-secondary: #0f0f3f; --bg-tertiary: #1a1a4a; --accent: #00ffff; --accent-secondary: #ff00ff; }
+        
+        /* Layout */
+        .app { display: flex; height: 100vh; }
+        .sidebar { width: 280px; background: var(--bg-secondary); border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow-y: auto; }
+        .sidebar-header { padding: 20px; border-bottom: 1px solid var(--border); }
+        .logo { font-size: 20px; font-weight: bold; background: linear-gradient(135deg, var(--accent), var(--accent-secondary)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .logo small { font-size: 11px; color: var(--text-muted); display: block; margin-top: 5px; }
+        
+        .nav-section { padding: 15px 0; }
+        .nav-title { padding: 8px 20px; font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--text-muted); }
+        .nav-item { display: flex; align-items: center; gap: 12px; padding: 10px 20px; margin: 2px 8px; border-radius: 8px; cursor: pointer; transition: all 0.2s; color: var(--text-muted); }
+        .nav-item:hover { background: var(--border); color: var(--text); }
+        .nav-item.active { background: var(--border); color: var(--accent); }
+        .nav-icon { font-size: 18px; width: 28px; }
+        .nav-badge { background: var(--border); padding: 2px 6px; border-radius: 12px; font-size: 11px; margin-left: auto; }
+        
+        /* Main Content */
+        .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; background: var(--bg-primary); }
+        .top-bar { background: var(--bg-secondary); border-bottom: 1px solid var(--border); padding: 12px 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
+        .page-title { font-size: 18px; font-weight: 500; }
+        .stats-header { display: flex; gap: 20px; font-size: 12px; color: var(--text-muted); flex-wrap: wrap; }
+        .content-area { flex: 1; overflow-y: auto; padding: 20px; }
+        
+        /* Cards */
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 20px; }
+        .stat-card { background: var(--bg-tertiary); border: 1px solid var(--border); border-radius: 12px; padding: 16px; display: flex; align-items: center; gap: 12px; }
+        .stat-number { font-size: 24px; font-weight: bold; color: var(--accent); }
+        .stat-label { font-size: 11px; color: var(--text-muted); }
+        
+        .chart-container { background: var(--bg-tertiary); border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin-bottom: 20px; }
+        canvas { max-height: 200px; width: 100%; }
+        
+        /* 3D Map */
+        #map3d { width: 100%; height: 400px; background: #1a1a2a; border-radius: 12px; margin-bottom: 20px; position: relative; overflow: hidden; }
+        
+        /* Bot Cards */
+        .bots-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; }
+        .bot-card { background: var(--bg-tertiary); border: 1px solid var(--border); border-radius: 12px; transition: all 0.2s; }
+        .bot-card:hover { border-color: var(--accent); background: var(--bg-secondary); }
+        .bot-card.selected { border-color: var(--accent); }
+        .bot-main { display: flex; align-items: center; padding: 16px; cursor: pointer; flex-wrap: wrap; gap: 10px; }
+        .bot-status { width: 40px; font-size: 20px; text-align: center; }
+        .bot-status.online { color: var(--success); }
+        .bot-status.offline { color: var(--danger); }
+        .bot-info { flex: 1; min-width: 150px; }
+        .bot-name { font-size: 16px; font-weight: 500; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .bot-badge { font-size: 10px; padding: 2px 8px; border-radius: 12px; background: var(--border); }
+        .bot-badge.online { background: rgba(0, 255, 136, 0.15); color: var(--success); }
+        .bot-badge.combat { background: rgba(255, 68, 68, 0.15); color: var(--danger); }
+        .bot-meta { font-size: 12px; color: var(--text-muted); display: flex; gap: 16px; margin-top: 6px; flex-wrap: wrap; }
+        .bot-actions { padding: 12px 16px; border-top: 1px solid var(--border); display: flex; gap: 8px; flex-wrap: wrap; background: var(--bg-secondary); }
+        .bot-checkbox { width: 20px; height: 20px; cursor: pointer; margin-left: 10px; }
+        
+        /* Buttons */
+        .btn { padding: 6px 12px; background: var(--border); border: none; border-radius: 6px; color: var(--text); cursor: pointer; font-size: 12px; display: inline-flex; align-items: center; gap: 6px; transition: all 0.2s; }
+        .btn:hover { background: var(--accent); color: #000; transform: translateY(-1px); }
+        .btn-primary { background: var(--accent); color: #000; }
+        .btn-danger:hover { background: var(--danger); color: #fff; }
+        .btn-success { background: var(--success); color: #000; }
+        
+        /* Voice Button */
+        .voice-btn { background: var(--accent-secondary); width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; }
+        .voice-btn.listening { animation: pulse 1s infinite; background: var(--danger); }
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
+        
+        /* Panels */
+        .panel { background: var(--bg-tertiary); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 20px; }
+        .panel-header { padding: 12px 16px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
+        .panel-body { padding: 12px; max-height: 300px; overflow-y: auto; }
+        
+        /* Trigger/Group/Waypoint Items */
+        .trigger-item, .group-item, .waypoint-item, .template-item, .schedule-item {
+            padding: 12px; margin: 8px; background: var(--bg-secondary); border-radius: 8px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;
+        }
+        .trigger-keyword { color: var(--accent); font-weight: bold; }
+        
+        /* Chat */
+        .chat-messages { height: 250px; overflow-y: auto; padding: 12px; }
+        .chat-message { padding: 6px 12px; margin-bottom: 6px; background: var(--bg-secondary); border-radius: 8px; font-size: 13px; }
+        .chat-author { color: var(--accent); font-weight: 600; }
+        .chat-input-area { padding: 12px; border-top: 1px solid var(--border); display: flex; gap: 8px; }
+        .chat-input { flex: 1; padding: 10px; background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 8px; color: var(--text); }
+        
+        /* Modal */
+        .modal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); z-index: 10000; align-items: center; justify-content: center; }
+        .modal-content { background: var(--bg-tertiary); border: 1px solid var(--border); border-radius: 16px; width: 500px; max-width: 90%; max-height: 80vh; overflow-y: auto; padding: 20px; }
+        .modal-header { display: flex; justify-content: space-between; margin-bottom: 20px; }
+        .modal input, .modal select, .modal textarea { width: 100%; padding: 10px; margin-bottom: 12px; background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 8px; color: var(--text); }
+        
+        /* Floating Buttons */
+        .floating-buttons { position: fixed; bottom: 20px; right: 20px; display: flex; gap: 10px; z-index: 100; }
+        .float-btn { width: 50px; height: 50px; border-radius: 50%; background: var(--accent); border: none; font-size: 24px; cursor: pointer; box-shadow: 0 2px 10px rgba(0,0,0,0.3); transition: all 0.2s; }
+        .float-btn:hover { transform: scale(1.1); }
+        
+        .theme-switcher { display: flex; gap: 5px; margin-top: 10px; }
+        .theme-btn { width: 30px; height: 30px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; }
+        .theme-btn.dark { background: #1a1a1a; }
+        .theme-btn.light { background: #f0f0f0; }
+        .theme-btn.cyber { background: #00ffff; }
+        .theme-btn.active { border-color: var(--accent); }
+        
+        .empty-state { text-align: center; padding: 40px; color: var(--text-muted); }
+        .search-bar input { width: 100%; padding: 10px; background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 8px; color: var(--text); margin-bottom: 16px; }
+        
+        @media (max-width: 768px) {
+            .sidebar { width: 70px; }
+            .sidebar-header, .nav-title, .nav-item span:not(.nav-icon) { display: none; }
+            .nav-item { justify-content: center; padding: 12px; }
+            .nav-icon { margin: 0; }
+            .stats-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+        
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: var(--bg-secondary); }
+        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+    </style>
+</head>
+<body class="theme-dark">
+    <div class="app">
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">🎮 ImInvisible Pro<small>Bot Control v6.0</small></div>
+                <div class="theme-switcher">
+                    <div class="theme-btn dark active" onclick="setTheme('dark')"></div>
+                    <div class="theme-btn light" onclick="setTheme('light')"></div>
+                    <div class="theme-btn cyber" onclick="setTheme('cyber')"></div>
+                </div>
+            </div>
+            <div class="nav-section">
+                <div class="nav-title">ОСНОВНЫЕ</div>
+                <div class="nav-item active" data-page="dashboard" onclick="switchPage('dashboard')"><span class="nav-icon">📊</span><span>Дашборд</span></div>
+                <div class="nav-item" data-page="bots" onclick="switchPage('bots')"><span class="nav-icon">🤖</span><span>Боты</span><span class="nav-badge" id="botsCount">0</span></div>
+                <div class="nav-item" data-page="triggers" onclick="switchPage('triggers')"><span class="nav-icon">🎯</span><span>Триггеры</span><span class="nav-badge" id="triggersCount">0</span></div>
+                <div class="nav-item" data-page="groups" onclick="switchPage('groups')"><span class="nav-icon">👥</span><span>Группы</span></div>
+                <div class="nav-item" data-page="waypoints" onclick="switchPage('waypoints')"><span class="nav-icon">📍</span><span>Маршруты</span></div>
+                <div class="nav-item" data-page="combat" onclick="switchPage('combat')"><span class="nav-icon">⚔️</span><span>Боевая</span></div>
+            </div>
+            <div class="nav-section">
+                <div class="nav-title">ИНСТРУМЕНТЫ</div>
+                <div class="nav-item" data-page="templates" onclick="switchPage('templates')"><span class="nav-icon">📝</span><span>Шаблоны</span></div>
+                <div class="nav-item" data-page="schedules" onclick="switchPage('schedules')"><span class="nav-icon">⏰</span><span>Расписание</span></div>
+                <div class="nav-item" data-page="scripts" onclick="switchPage('scripts')"><span class="nav-icon">📜</span><span>Скрипты</span></div>
+                <div class="nav-item" data-page="analytics" onclick="switchPage('analytics')"><span class="nav-icon">📈</span><span>Аналитика</span></div>
+                <div class="nav-item" data-page="settings" onclick="switchPage('settings')"><span class="nav-icon">⚙️</span><span>Настройки</span></div>
+            </div>
+            <div class="nav-section">
+                <div class="nav-title">ДЕЙСТВИЯ</div>
+                <div class="nav-item" onclick="createBot()"><span class="nav-icon">➕</span><span>Создать бота</span></div>
+                <div class="nav-item" onclick="stopAllBots()"><span class="nav-icon">⏹️</span><span>Остановить всех</span></div>
+                <div class="nav-item" onclick="refreshBots()"><span class="nav-icon">🔄</span><span>Обновить</span></div>
+                <div class="nav-item" onclick="exportConfig()"><span class="nav-icon">💾</span><span>Экспорт</span></div>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="main">
+            <div class="top-bar">
+                <div class="page-title" id="pageTitle">Дашборд</div>
+                <div class="stats-header">
+                    <span>👥 <span id="playerCount">0</span> игроков</span>
+                    <span>🤖 <span id="botCountTop">0</span> ботов</span>
+                    <span>⚔️ <span id="killsCount">0</span> киллов</span>
+                    <span>🎤 <button class="voice-btn" id="voiceBtn" onclick="startVoiceRecognition()">🎙️</button></span>
+                </div>
+            </div>
+            <div class="content-area" id="contentArea">
+                <!-- Dashboard Page -->
+                <div id="page-dashboard" class="page">
+                    <div class="stats-grid">
+                        <div class="stat-card"><div class="stat-number" id="statTotal">0</div><div class="stat-label">Всего ботов</div></div>
+                        <div class="stat-card"><div class="stat-number" id="statOnline">0</div><div class="stat-label">Онлайн</div></div>
+                        <div class="stat-card"><div class="stat-number" id="statTriggers">0</div><div class="stat-label">Триггеров</div></div>
+                        <div class="stat-card"><div class="stat-number" id="statKills">0</div><div class="stat-label">Киллов</div></div>
+                        <div class="stat-card"><div class="stat-number" id="statGroups">0</div><div class="stat-label">Групп</div></div>
+                        <div class="stat-card"><div class="stat-number" id="statExplored">0</div><div class="stat-label">Исследовано</div></div>
+                    </div>
+                    <div class="chart-container"><canvas id="activityChart"></canvas></div>
+                    <div id="map3d"></div>
+                    <div class="panel"><div class="panel-header"><span>📈 Последние события</span><button class="btn" onclick="clearEvents()">Очистить</button></div><div class="panel-body" id="eventsLog"></div></div>
+                </div>
+
+                <!-- Bots Page -->
+                <div id="page-bots" class="page" style="display:none">
+                    <div class="search-bar"><input type="text" id="searchInput" placeholder="🔍 Поиск ботов..."></div>
+                    <div class="bots-list" id="botsList"></div>
+                </div>
+
+                <!-- Triggers Page -->
+                <div id="page-triggers" class="page" style="display:none">
+                    <button class="btn btn-primary" onclick="openTriggerModal()" style="margin-bottom:16px">➕ Добавить триггер</button>
+                    <div id="triggersList"></div>
+                </div>
+
+                <!-- Groups Page -->
+                <div id="page-groups" class="page" style="display:none">
+                    <button class="btn btn-primary" onclick="openGroupModal()" style="margin-bottom:16px">➕ Создать группу</button>
+                    <div id="groupsList"></div>
+                </div>
+
+                <!-- Waypoints Page -->
+                <div id="page-waypoints" class="page" style="display:none">
+                    <button class="btn btn-primary" onclick="openWaypointModal()" style="margin-bottom:16px">➕ Создать маршрут</button>
+                    <div id="waypointsList"></div>
+                </div>
+
+                <!-- Combat Page -->
+                <div id="page-combat" class="page" style="display:none">
+                    <div class="stats-grid">
+                        <div class="stat-card"><div class="stat-number" id="combatKills">0</div><div class="stat-label">Киллов</div></div>
+                        <div class="stat-card"><div class="stat-number" id="combatDeaths">0</div><div class="stat-label">Смертей</div></div>
+                        <div class="stat-card"><div class="stat-number" id="combatHits">0</div><div class="stat-label">Попаданий</div></div>
+                        <div class="stat-card"><div class="stat-number" id="combatCrits">0</div><div class="stat-label">Критов</div></div>
+                        <div class="stat-card"><div class="stat-number" id="combatDPS">0</div><div class="stat-label">DPS</div></div>
+                    </div>
+                    <div class="panel"><div class="panel-header"><span>🎯 Ближайшие цели</span><button class="btn" onclick="toggleAutoPVP()">🤖 Авто-ПВП</button></div><div class="panel-body" id="targetsList"></div></div>
+                    <div class="panel"><div class="panel-header"><span>🚫 Кит-лист</span><input type="text" id="killlistInput" placeholder="Имя игрока" style="width:150px"><button class="btn" onclick="addToKillList()">➕ Добавить</button></div><div class="panel-body" id="killlistList"></div></div>
+                </div>
+
+                <!-- Templates Page -->
+                <div id="page-templates" class="page" style="display:none">
+                    <button class="btn btn-primary" onclick="openTemplateModal()" style="margin-bottom:16px">➕ Добавить шаблон</button>
+                    <div id="templatesList"></div>
+                </div>
+
+                <!-- Schedules Page -->
+                <div id="page-schedules" class="page" style="display:none">
+                    <button class="btn btn-primary" onclick="openScheduleModal()" style="margin-bottom:16px">➕ Добавить задание</button>
+                    <div id="schedulesList"></div>
+                </div>
+
+                <!-- Scripts Page -->
+                <div id="page-scripts" class="page" style="display:none">
+                    <div class="panel"><div class="panel-header"><span>📜 Редактор скриптов</span><button class="btn" onclick="runScript()">▶️ Выполнить</button><button class="btn" onclick="saveScript()">💾 Сохранить</button></div><div class="panel-body"><textarea id="scriptEditor" rows="15" style="width:100%; background:var(--bg-secondary); border:1px solid var(--border); border-radius:8px; color:var(--text); font-family:monospace; padding:10px;">// ImInvisible Script Editor
+// Доступные функции:
+// bot.say(message) - сказать сообщение
+// bot.move(x, y, z) - переместиться
+// bot.attack(target) - атаковать игрока
+// bot.gather(x, z) - собрать ботов
+// bot.follow(player) - следовать за игроком
+// bot.setMode(mode, target) - установить режим (stalker/bodyguard/diplomat/trader)
+
+console.log('Скрипт запущен!');
+bot.say('Привет, мир!');</textarea></div></div>
+                    <div class="panel"><div class="panel-header"><span>📚 Библиотека скриптов</span></div><div class="panel-body" id="scriptsLibrary"></div></div>
+                </div>
+
+                <!-- Analytics Page -->
+                <div id="page-analytics" class="page" style="display:none">
+                    <div class="stats-grid">
+                        <div class="stat-card"><div class="stat-number" id="analyticsTotal">0</div><div class="stat-label">Всего действий</div></div>
+                        <div class="stat-card"><div class="stat-number" id="analyticsToday">0</div><div class="stat-label">За сегодня</div></div>
+                        <div class="stat-card"><div class="stat-number" id="analyticsAvg">0</div><div class="stat-label">Ср. в час</div></div>
+                    </div>
+                    <div class="chart-container"><canvas id="heatmapChart"></canvas></div>
+                    <div class="panel"><div class="panel-header"><span>📊 Статистика по ботам</span></div><div class="panel-body" id="botStatsList"></div></div>
+                </div>
+
+                <!-- Settings Page -->
+                <div id="page-settings" class="page" style="display:none">
+                    <div class="panel"><div class="panel-header"><span>⚙️ Общие настройки</span></div><div class="panel-body">
+                        <label><input type="checkbox" id="autoReconnect" checked> Авто-реконнект</label><br>
+                        <label><input type="checkbox" id="antiKick" checked> Анти-кик</label><br>
+                        <label><input type="checkbox" id="notifications" checked> Уведомления в браузере</label><br>
+                        <label><input type="checkbox" id="sound" checked> Звуки</label><br>
+                        <label>Интервал обновления: <input type="number" id="refreshInterval" value="5" min="1" max="30"> сек</label><br>
+                        <button class="btn" onclick="saveSettings()">💾 Сохранить настройки</button>
+                    </div></div>
+                    <div class="panel"><div class="panel-header"><span>🤖 Telegram бот</span><input type="text" id="telegramToken" placeholder="Telegram Bot Token"><button class="btn" onclick="initTelegram()">🚀 Запустить</button></div><div class="panel-body" id="telegramStatus"></div></div>
+                    <div class="panel"><div class="panel-header"><span>🌐 Discord Webhook</span><input type="text" id="discordWebhook" placeholder="Discord Webhook URL"><button class="btn" onclick="initDiscord()">🔗 Подключить</button></div></div>
+                    <div class="panel"><div class="panel-header"><span>📊 Системная информация</span></div><div class="panel-body" id="systemInfo"></div></div>
+                </div>
+
+                <!-- Chat Panel -->
+                <div class="panel">
+                    <div class="panel-header"><span>💬 Чат</span><button class="btn" onclick="clearChat()">Очистить</button><button class="btn" onclick="openMessageModal()">📨 Отправить</button></div>
+                    <div class="chat-messages" id="chatMessages"></div>
+                    <div class="chat-input-area"><input type="text" id="chatInput" class="chat-input" placeholder="Сообщение..." onkeypress="handleChatKey(event)"><button class="btn btn-primary" onclick="sendMessage()">Отправить</button></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modals -->
+    <div id="messageModal" class="modal"><div class="modal-content"><div class="modal-header"><h3>📨 Отправить сообщение</h3><button onclick="closeModal('messageModal')" style="background:none;border:none;color:#fff;font-size:24px;">✕</button></div>
+        <select id="messageTarget"><option value="all">📢 Всем ботам</option><option value="single">🤖 Одному боту</option><option value="selected">🎯 Выбранным ботам</option></select>
+        <div id="singleBotDiv" style="display:none"><select id="singleBotSelect"></select></div>
+        <input type="text" id="messageText" placeholder="Текст сообщения...">
+        <div style="display:flex; gap:10px; margin-top:20px;"><button class="btn btn-primary" style="flex:1" onclick="sendMessageToBots()">📤 Отправить</button><button class="btn" style="flex:1" onclick="closeModal('messageModal')">Отмена</button></div>
+    </div></div>
+
+    <div id="triggerModal" class="modal"><div class="modal-content"><div class="modal-header"><h3>⚡ Добавить триггер</h3><button onclick="closeModal('triggerModal')" style="background:none;border:none;color:#fff;font-size:24px;">✕</button></div>
+        <input type="text" id="triggerKeyword" placeholder="Ключевое слово">
+        <textarea id="triggerResponse" rows="3" placeholder="Ответ (можно {username})"></textarea>
+        <select id="triggerBot"><option value="all">Все боты</option></select>
+        <div style="display:flex; gap:10px; margin-top:20px;"><button class="btn btn-primary" style="flex:1" onclick="addTrigger()">➕ Добавить</button><button class="btn" style="flex:1" onclick="closeModal('triggerModal')">Отмена</button></div>
+    </div></div>
+
+    <div id="groupModal" class="modal"><div class="modal-content"><div class="modal-header"><h3>👥 Создать группу</h3><button onclick="closeModal('groupModal')" style="background:none;border:none;color:#fff;font-size:24px;">✕</button></div>
+        <input type="text" id="groupName" placeholder="Название группы"><div id="groupBotsSelect"></div>
+        <div style="display:flex; gap:10px; margin-top:20px;"><button class="btn btn-primary" style="flex:1" onclick="createGroup()">✅ Создать</button><button class="btn" style="flex:1" onclick="closeModal('groupModal')">Отмена</button></div>
+    </div></div>
+
+    <div id="waypointModal" class="modal"><div class="modal-content"><div class="modal-header"><h3>📍 Создать маршрут</h3><button onclick="closeModal('waypointModal')" style="background:none;border:none;color:#fff;font-size:24px;">✕</button></div>
+        <input type="text" id="waypointName" placeholder="Название маршрута">
+        <textarea id="waypointPoints" rows="5" placeholder="Точки: x,y,z&#10;100,64,200&#10;150,64,250"></textarea>
+        <div style="display:flex; gap:10px; margin-top:20px;"><button class="btn btn-primary" style="flex:1" onclick="createWaypoint()">✅ Создать</button><button class="btn" style="flex:1" onclick="closeModal('waypointModal')">Отмена</button></div>
+    </div></div>
+
+    <div id="templateModal" class="modal"><div class="modal-content"><div class="modal-header"><h3>📝 Добавить шаблон</h3><button onclick="closeModal('templateModal')" style="background:none;border:none;color:#fff;font-size:24px;">✕</button></div>
+        <input type="text" id="templateName" placeholder="Название"><textarea id="templateText" rows="3" placeholder="Текст шаблона"></textarea>
+        <div style="display:flex; gap:10px; margin-top:20px;"><button class="btn btn-primary" style="flex:1" onclick="addTemplate()">✅ Добавить</button><button class="btn" style="flex:1" onclick="closeModal('templateModal')">Отмена</button></div>
+    </div></div>
+
+    <div id="scheduleModal" class="modal"><div class="modal-content"><div class="modal-header"><h3>⏰ Добавить задание</h3><button onclick="closeModal('scheduleModal')" style="background:none;border:none;color:#fff;font-size:24px;">✕</button></div>
+        <input type="text" id="scheduleName" placeholder="Название"><input type="text" id="scheduleCron" placeholder="Cron (* * * * *)">
+        <select id="scheduleAction"><option value="say">Сообщение</option><option value="gather">Собрать</option></select>
+        <input type="text" id="scheduleMessage" placeholder="Сообщение">
+        <div style="display:flex; gap:10px; margin-top:20px;"><button class="btn btn-primary" style="flex:1" onclick="addSchedule()">✅ Добавить</button><button class="btn" style="flex:1" onclick="closeModal('scheduleModal')">Отмена</button></div>
+    </div></div>
+
+    <div class="floating-buttons"><button class="float-btn" onclick="openMessageModal()">💬</button><button class="float-btn" onclick="openTriggerModal()">⚡</button><button class="float-btn" onclick="startVoiceRecognition()">🎤</button><button class="float-btn" onclick="switchPage('scripts')">📜</button></div>
+
+    <script>
+        // ============= ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ =============
+        const socket = io();
+        let bots = [], triggers = [], groups = [], waypoints = [], templates = [], schedules = [], killList = [];
+        let currentPage = 'dashboard', selectedBots = new Set(), selectedBotId = null, chatLog = [];
+        let combatStats = { kills: 0, deaths: 0, hits: 0, crits: 0, dps: 0 };
+        let activityChart = null, heatmapChart = null;
+        let scene, camera, renderer, controls, botMarkers = [];
+        let autoPVPEnabled = false;
+        
+        // ============= 3D КАРТА =============
+        function init3DMap() {
+            const container = document.getElementById('map3d');
+            if (!container) return;
+            
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x0a0a2a);
+            scene.fog = new THREE.FogExp2(0x0a0a2a, 0.002);
+            
+            camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000);
+            camera.position.set(50, 50, 50);
+            camera.lookAt(0, 0, 0);
+            
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            container.innerHTML = '';
+            container.appendChild(renderer.domElement);
+            
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            
+            // Сетка земли
+            const gridHelper = new THREE.GridHelper(200, 20, 0x00d4ff, 0x3366aa);
+            gridHelper.position.y = -2;
+            scene.add(gridHelper);
+            
+            // Освещение
+            const ambientLight = new THREE.AmbientLight(0x404040);
+            scene.add(ambientLight);
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+            directionalLight.position.set(10, 20, 5);
+            scene.add(directionalLight);
+            
+            // Звезды
+            const starGeometry = new THREE.BufferGeometry();
+            const starCount = 1000;
+            const starPositions = new Float32Array(starCount * 3);
+            for (let i = 0; i < starCount; i++) {
+                starPositions[i*3] = (Math.random() - 0.5) * 500;
+                starPositions[i*3+1] = (Math.random() - 0.5) * 100 + 50;
+                starPositions[i*3+2] = (Math.random() - 0.5) * 500 - 100;
+            }
+            starGeometry.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
+            const starMaterial = new THREE.PointsMaterial({ color: 0xffffff, size: 0.2 });
+            const stars = new THREE.Points(starGeometry, starMaterial);
+            scene.add(stars);
+            
+            animate3D();
+        }
+        
+        function animate3D() {
+            if (!renderer) return;
+            requestAnimationFrame(animate3D);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+        
+        function update3DMap() {
+            if (!scene) init3DMap();
+            
+            // Удаляем старые маркеры
+            botMarkers.forEach(marker => scene.remove(marker));
+            botMarkers = [];
+            
+            // Добавляем ботов
+            bots.forEach(bot => {
+                if (!bot.online) return;
+                const geometry = new THREE.SphereGeometry(1, 32, 32);
+                const material = new THREE.MeshStandardMaterial({ color: bot.inCombat ? 0xff4444 : 0x00d4ff, emissive: 0x004444 });
+                const sphere = new THREE.Mesh(geometry, material);
+                sphere.position.set(bot.x || 0, (bot.y || 64) + 1, bot.z || 0);
+                scene.add(sphere);
+                botMarkers.push(sphere);
+                
+                // Добавляем имя
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                canvas.width = 256;
+                canvas.height = 64;
+                ctx.fillStyle = '#00d4ff';
+                ctx.font = 'Bold 20px Arial';
+                ctx.fillText(bot.username, 10, 30);
+                const texture = new THREE.CanvasTexture(canvas);
+                const nameMaterial = new THREE.SpriteMaterial({ map: texture });
+                const sprite = new THREE.Sprite(nameMaterial);
+                sprite.scale.set(3, 0.75, 1);
+                sprite.position.set(bot.x || 0, (bot.y || 64) + 2, bot.z || 0);
+                scene.add(sprite);
+                botMarkers.push(sprite);
+            });
+        }
+        
+        // ============= ГОЛОСОВЫЕ КОМАНДЫ =============
+        let recognition = null;
+        
+        function startVoiceRecognition() {
+            if (!('webkitSpeechRecognition' in window)) {
+                alert('Голосовое распознавание не поддерживается в этом браузере');
+                return;
+            }
+            
+            const voiceBtn = document.getElementById('voiceBtn');
+            voiceBtn.classList.add('listening');
+            
+            recognition = new webkitSpeechRecognition();
+            recognition.lang = 'ru-RU';
+            recognition.interimResults = false;
+            recognition.maxAlternatives = 1;
+            
+            recognition.onresult = (event) => {
+                const command = event.results[0][0].transcript.toLowerCase();
+                voiceBtn.classList.remove('listening');
+                processVoiceCommand(command);
+            };
+            
+            recognition.onerror = () => {
+                voiceBtn.classList.remove('listening');
+                alert('Ошибка распознавания');
+            };
+            
+            recognition.start();
+        }
+        
+        function processVoiceCommand(command) {
+            addChatMessage('SYSTEM', `🎤 Голосовая команда: "${command}"`);
+            
+            if (command.includes('помощь') || command.includes('help')) {
+                addChatMessage('BOT', 'Доступные команды: создай бота, останови всех, покажи ботов, включи пвп, выключи пвп');
+            }
+            else if (command.includes('создай бота')) {
+                createBot();
+            }
+            else if (command.includes('останови всех')) {
+                stopAllBots();
+            }
+            else if (command.includes('покажи ботов')) {
+                refreshBots();
+            }
+            else if (command.includes('включи пвп')) {
+                toggleAutoPVP();
+            }
+            else if (command.includes('выключи пвп')) {
+                toggleAutoPVP();
+            }
+            else if (command.includes('перемести бота')) {
+                const match = command.match(/перемести бота (\w+)/);
+                if (match && bots.find(b => b.username === match[1])) {
+                    const bot = bots.find(b => b.username === match[1]);
+                    moveBot(bot.id);
+                } else {
+                    addChatMessage('BOT', 'Не понял какого бота перемещать');
+                }
+            }
+            else {
+                addChatMessage('BOT', 'Команда не распознана. Скажите "помощь" для списка команд');
+            }
+        }
+        
+        // ============= ТЕМЫ =============
+        function setTheme(theme) {
+            document.body.className = `theme-${theme}`;
+            localStorage.setItem('theme', theme);
+            document.querySelectorAll('.theme-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelector(`.theme-btn.${theme}`).classList.add('active');
+        }
+        
+        // ============= СТРАНИЦЫ =============
+        function switchPage(page) {
+            currentPage = page;
+            document.querySelectorAll('.page').forEach(p => p.style.display = 'none');
+            document.getElementById(`page-${page}`).style.display = 'block';
+            document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+            document.querySelector(`[data-page="${page}"]`).classList.add('active');
+            document.getElementById('pageTitle').innerText = {
+                dashboard:'Дашборд', bots:'Боты', triggers:'Триггеры', groups:'Группы',
+                waypoints:'Маршруты', combat:'Боевая', templates:'Шаблоны', schedules:'Расписание',
+                scripts:'Скрипты', analytics:'Аналитика', settings:'Настройки'
+            }[page];
+            
+            if (page === 'dashboard') { updateDashboard(); update3DMap(); }
+            if (page === 'bots') updateBotsList();
+            if (page === 'triggers') updateTriggersList();
+            if (page === 'groups') loadGroups();
+            if (page === 'waypoints') loadWaypoints();
+            if (page === 'combat') updateCombatPage();
+            if (page === 'templates') loadTemplates();
+            if (page === 'schedules') loadSchedules();
+            if (page === 'scripts') loadScriptsLibrary();
+            if (page === 'analytics') updateAnalytics();
+            if (page === 'settings') loadSettings();
+        }
+        
+        // ============= DASHBOARD =============
+        function updateDashboard() {
+            document.getElementById('statTotal').innerText = bots.length;
+            document.getElementById('statOnline').innerText = bots.filter(b=>b.online).length;
+            document.getElementById('statTriggers').innerText = triggers.length;
+            document.getElementById('statKills').innerText = combatStats.kills;
+            document.getElementById('statGroups').innerText = groups.length;
+            document.getElementById('statExplored').innerText = Math.floor(Math.random() * 1000);
+            document.getElementById('botsCount').innerText = bots.length;
+            document.getElementById('triggersCount').innerText = triggers.length;
+            document.getElementById('botCountTop').innerText = bots.length;
+            document.getElementById('killsCount').innerText = combatStats.kills;
+            updateActivityChart();
+            updateEventsLog();
+        }
+        
+        function updateActivityChart() {
+            const ctx = document.getElementById('activityChart')?.getContext('2d');
+            if(!ctx) return;
+            if(activityChart) activityChart.destroy();
+            activityChart = new Chart(ctx, {
+                type: 'line',
+                data: { labels: Array.from({length:60},(_,i)=>`${i}мин`), datasets: [{ label: 'Активность', data: Array.from({length:60},()=>Math.floor(Math.random()*50)), borderColor: '#00d4ff', fill: true }] },
+                options: { responsive: true, maintainAspectRatio: true, plugins: { legend: { labels: { color: '#fff' } } }, scales: { y: { grid: { color: '#2a2a2a' } }, x: { grid: { color: '#2a2a2a' } } } }
+            });
+        }
+        
+        function updateEventsLog() {
+            const container = document.getElementById('eventsLog');
+            container.innerHTML = chatLog.slice(-15).reverse().map(e => `<div style="padding:6px; border-bottom:1px solid var(--border); font-size:12px;"><span style="color:var(--accent);">[${e.type}]</span> ${e.message}</div>`).join('');
+        }
+        
+        function clearEvents() { chatLog = []; updateEventsLog(); }
+        
+        // ============= BOTS =============
+        function updateBotsList() {
+            let filtered = [...bots];
+            const search = document.getElementById('searchInput')?.value.toLowerCase();
+            if(search) filtered = filtered.filter(b=>b.username.toLowerCase().includes(search));
+            const container = document.getElementById('botsList');
+            if(!filtered.length) { container.innerHTML = '<div class="empty-state">📭 Нет ботов</div>'; return; }
+            container.innerHTML = filtered.map(bot => `<div class="bot-card ${selectedBotId===bot.id?'selected':''}"><div class="bot-main" onclick="selectBot('${bot.id}')"><div class="bot-status ${bot.online?'online':'offline'}">${bot.online?'🟢':'🔴'}</div><div class="bot-info"><div class="bot-name">${bot.username} ${bot.online?'<span class="bot-badge online">● Онлайн</span>':''} ${bot.mode?`<span class="bot-badge">${bot.mode}</span>`:''}</div><div class="bot-meta">📍 X:${bot.x||0} Y:${bot.y||64} Z:${bot.z||0} | ❤️ ${bot.health||20} HP</div></div><input type="checkbox" class="bot-checkbox" value="${bot.id}" onclick="event.stopPropagation(); toggleBotSelect('${bot.id}')" ${selectedBots.has(bot.id)?'checked':''}></div><div class="bot-actions"><button class="btn" onclick="event.stopPropagation(); moveBot('${bot.id}')">📍 Переместить</button><button class="btn" onclick="event.stopPropagation(); attackBot('${bot.id}')">⚔️ Атаковать</button><button class="btn" onclick="event.stopPropagation(); setBotMode('${bot.id}','stalker','${bot.username}')">🕵️ Сталкер</button><button class="btn" onclick="event.stopPropagation(); setBotMode('${bot.id}','bodyguard','${bot.username}')">🛡️ Телохранитель</button><button class="btn" onclick="event.stopPropagation(); setBotMode('${bot.id}','diplomat')">🤝 Дипломат</button><button class="btn" onclick="event.stopPropagation(); setBotMode('${bot.id}','trader')">💰 Торговец</button><button class="btn btn-danger" onclick="event.stopPropagation(); stopBot('${bot.id}')">⏹️ Стоп</button></div></div>`).join('');
+        }
+        
+        function selectBot(id) { selectedBotId = id; updateBotsList(); }
+        function toggleBotSelect(id) { if(selectedBots.has(id)) selectedBots.delete(id); else selectedBots.add(id); }
+        function refreshBots() { fetch('/api/bots').then(r=>r.json()).then(d=>{ bots=d.bots||[]; updateDashboard(); updateBotsList(); update3DMap(); }); }
+        function createBot() { const name = prompt('Имя бота:'); if(name) fetch('/api/bots/create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:name})}).then(()=>refreshBots()); }
+        function stopAllBots() { if(confirm('Остановить всех?')) fetch('/api/bots/stop',{method:'POST'}); }
+        function stopBot(id) { fetch(`/api/bot/${id}/stop`,{method:'POST'}); }
+        function moveBot(id) { const x=prompt('X:')||0, y=prompt('Y:')||64, z=prompt('Z:')||0; fetch(`/api/bot/${id}/move`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({x:parseFloat(x),y:parseFloat(y),z:parseFloat(z)})}); }
+        function attackBot(id) { const target=prompt('Кого атаковать?'); if(target) fetch('/api/kill',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({target,damage:5,botId:id})}); }
+        function setBotMode(id, mode, target) { fetch(`/api/bot/${id}/set-mode`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode,target})}).then(()=>refreshBots()); }
+        
+        // ============= TRIGGERS =============
+        function updateTriggersList() { const container = document.getElementById('triggersList'); if(!triggers.length) { container.innerHTML = '<div class="empty-state">Нет триггеров</div>'; return; } container.innerHTML = triggers.map(t => `<div class="trigger-item"><div><div class="trigger-keyword">${t.keyword}</div><div class="trigger-response">${t.response}</div><div style="font-size:10px;">${t.botId==='all'?'все боты':'конкретный'}</div></div><div><button class="btn" onclick="toggleTrigger(${t.id})" style="background:${t.enabled?'var(--success)':'var(--danger)'}">${t.enabled?'✅':'❌'}</button><button class="btn btn-danger" onclick="deleteTrigger(${t.id})">🗑️</button></div></div>`).join(''); }
+        function openTriggerModal() { fetch('/api/bots').then(r=>r.json()).then(d=>{ const select=document.getElementById('triggerBot'); select.innerHTML='<option value="all">Все боты</option>'; d.bots.forEach(b=>select.innerHTML+=`<option value="${b.id}">${b.username}</option>`); }); document.getElementById('triggerModal').style.display='flex'; }
+        function addTrigger() { const keyword=document.getElementById('triggerKeyword').value.trim(), response=document.getElementById('triggerResponse').value.trim(), botId=document.getElementById('triggerBot').value; if(!keyword||!response){alert('Заполните поля');return;} fetch('/api/triggers/add',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({keyword,response,botId})}).then(()=>{closeModal('triggerModal');loadTriggers();}); }
+        function toggleTrigger(id) { fetch(`/api/triggers/${id}/toggle`,{method:'POST'}).then(()=>loadTriggers()); }
+        function deleteTrigger(id) { if(confirm('Удалить?')) fetch(`/api/triggers/${id}`,{method:'DELETE'}).then(()=>loadTriggers()); }
+        function loadTriggers() { fetch('/api/triggers').then(r=>r.json()).then(d=>{ triggers=d.triggers||[]; updateTriggersList(); updateDashboard(); }); }
+        
+        // ============= GROUPS =============
+        function openGroupModal() { fetch('/api/bots').then(r=>r.json()).then(d=>{ const container=document.getElementById('groupBotsSelect'); container.innerHTML='<div>Выберите ботов:</div>'; d.bots.forEach(b=>container.innerHTML+=`<label><input type="checkbox" value="${b.id}"> ${b.username}</label><br>`); }); document.getElementById('groupModal').style.display='flex'; }
+        function createGroup() { const name=document.getElementById('groupName').value.trim(), botIds=Array.from(document.querySelectorAll('#groupBotsSelect input:checked')).map(cb=>cb.value); if(!name){alert('Введите название');return;} fetch('/api/groups/create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,botIds})}).then(()=>{closeModal('groupModal');loadGroups();}); }
+        function loadGroups() { fetch('/api/groups').then(r=>r.json()).then(d=>{ groups=d.groups||[]; const container=document.getElementById('groupsList'); if(!groups.length){container.innerHTML='<div class="empty-state">Нет групп</div>';return;} container.innerHTML=groups.map(g=>`<div class="group-item"><div><strong>${g.name}</strong><div>Ботов: ${g.bots?.length||0}</div></div><div><button class="btn" onclick="groupCommand('${g.name}','say')">💬 Сказать</button><button class="btn" onclick="groupCommand('${g.name}','move')">📍 Переместить</button></div></div>`).join(''); }); }
+        function groupCommand(name,cmd) { if(cmd==='say'){ const msg=prompt('Сообщение:'); if(msg) fetch(`/api/groups/${name}/command`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({command:'say',message:msg})}); } if(cmd==='move'){ const coords=prompt('X,Y,Z:'); if(coords){ const [x,y,z]=coords.split(',').map(Number); fetch(`/api/groups/${name}/command`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({command:'move',coords:{x,y,z}})}); } } }
+        
+        // ============= WAYPOINTS =============
+        function openWaypointModal() { document.getElementById('waypointModal').style.display='flex'; }
+        function createWaypoint() { const name=document.getElementById('waypointName').value.trim(), pointsText=document.getElementById('waypointPoints').value.trim(); if(!name||!pointsText){alert('Заполните поля');return;} const points=pointsText.split('\n').filter(l=>l.trim()).map(l=>{const[x,y,z]=l.split(',').map(Number);return{x,y:y||64,z};}); fetch('/api/waypoints/create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,points})}).then(()=>{closeModal('waypointModal');loadWaypoints();}); }
+        function loadWaypoints() { fetch('/api/waypoints').then(r=>r.json()).then(d=>{ waypoints=d.waypoints||[]; const container=document.getElementById('waypointsList'); if(!waypoints.length){container.innerHTML='<div class="empty-state">Нет маршрутов</div>';return;} container.innerHTML=waypoints.map(w=>`<div class="waypoint-item"><div><strong>${w.name}</strong><div>Точек: ${w.points?.length||0}</div></div><div><button class="btn" onclick="startPatrol('${w.name}')">🚶 Патруль</button></div></div>`).join(''); }); }
+        function startPatrol(name) { const botId=prompt('ID бота:'); if(botId) fetch(`/api/bot/${botId}/start-patrol`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({waypointName:name})}); }
+        
+        // ============= COMBAT =============
+        function updateCombatPage() { document.getElementById('combatKills').innerText=combatStats.kills; document.getElementById('combatDeaths').innerText=combatStats.deaths; document.getElementById('combatHits').innerText=combatStats.hits; document.getElementById('combatCrits').innerText=combatStats.crits; document.getElementById('combatDPS').innerText=combatStats.dps; fetch('/api/targets').then(r=>r.json()).then(d=>{ const container=document.getElementById('targetsList'); if(!d.targets?.length){container.innerHTML='<div class="empty-state">Нет целей</div>';return;} container.innerHTML=d.targets.map(t=>`<div class="trigger-item"><div><strong>${t.name}</strong><div>❤️ ${t.health} HP | 📍 ${t.distance}м</div></div><div><button class="btn" onclick="attackTarget('${t.name}')">⚔️ Атаковать</button></div></div>`).join(''); }); }
+        function attackTarget(name) { fetch('/api/kill',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({target:name,damage:5})}); }
+        function addToKillList() { const name=document.getElementById('killlistInput').value.trim(); if(name) fetch('/api/killlist/add',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})}).then(()=>updateCombatPage()); }
+        function toggleAutoPVP() { autoPVPEnabled=!autoPVPEnabled; fetch('/api/auto-pvp',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled:autoPVPEnabled,radius:10})}); addChatMessage('SYSTEM',autoPVPEnabled?'Авто-ПВП включен':'Авто-ПВП выключен'); }
+        
+        // ============= TEMPLATES =============
+        function openTemplateModal() { document.getElementById('templateModal').style.display='flex'; }
+        function addTemplate() { const name=document.getElementById('templateName').value.trim(), text=document.getElementById('templateText').value.trim(); if(!name||!text){alert('Заполните поля');return;} templates.push({id:Date.now(),name,text}); localStorage.setItem('templates',JSON.stringify(templates)); closeModal('templateModal'); loadTemplates(); }
+        function loadTemplates() { const saved=localStorage.getItem('templates'); if(saved) templates=JSON.parse(saved); const container=document.getElementById('templatesList'); if(!templates.length){container.innerHTML='<div class="empty-state">Нет шаблонов</div>';return;} container.innerHTML=templates.map(t=>`<div class="template-item"><div><strong>${t.name}</strong><div>${t.text}</div></div><div><button class="btn" onclick="useTemplate('${t.text.replace(/'/g,"\\'")}')">📋 Использовать</button><button class="btn btn-danger" onclick="deleteTemplate(${t.id})">🗑️</button></div></div>`).join(''); }
+        function useTemplate(text) { document.getElementById('messageText').value=text; closeModal('templateModal'); openMessageModal(); }
+        function deleteTemplate(id) { templates=templates.filter(t=>t.id!==id); localStorage.setItem('templates',JSON.stringify(templates)); loadTemplates(); }
+        
+        // ============= SCHEDULES =============
+        function openScheduleModal() { document.getElementById('scheduleModal').style.display='flex'; }
+        function addSchedule() { const name=document.getElementById('scheduleName').value.trim(), cron=document.getElementById('scheduleCron').value.trim(), action=document.getElementById('scheduleAction').value, message=document.getElementById('scheduleMessage').value; if(!name||!cron){alert('Заполните поля');return;} schedules.push({id:Date.now(),name,cron,action,message,enabled:true}); localStorage.setItem('schedules',JSON.stringify(schedules)); closeModal('scheduleModal'); loadSchedules(); }
+        function loadSchedules() { const saved=localStorage.getItem('schedules'); if(saved) schedules=JSON.parse(saved); const container=document.getElementById('schedulesList'); if(!schedules.length){container.innerHTML='<div class="empty-state">Нет заданий</div>';return;} container.innerHTML=schedules.map(s=>`<div class="schedule-item"><div><strong>${s.name}</strong><div>${s.cron} | ${s.action}</div></div><div><button class="btn" onclick="toggleSchedule(${s.id})" style="background:${s.enabled?'var(--success)':'var(--danger)'}">${s.enabled?'✅':'❌'}</button><button class="btn btn-danger" onclick="deleteSchedule(${s.id})">🗑️</button></div></div>`).join(''); }
+        
+        // ============= SCRIPTS =============
+        function runScript() { const code=document.getElementById('scriptEditor').value; try { eval(`(async()=>{ const bot={ say:(msg)=>fetch('/api/chat/send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:msg})}), move:(x,y,z)=>fetch('/api/bot/${selectedBotId||''}/move',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({x,y,z})}), attack:(target)=>fetch('/api/kill',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({target,damage:5})}), gather:(x,z)=>fetch('/api/bots/gather',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({x,y:64,z})}), follow:(player)=>fetch('/api/bot/${selectedBotId||''}/follow-player',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({playerName:player})}), setMode:(mode,target)=>fetch('/api/bot/${selectedBotId||''}/set-mode',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode,target})}) }; ${code} })()`); addChatMessage('SYSTEM','Скрипт выполнен'); } catch(e){ addChatMessage('ERROR','Ошибка: '+e.message); } }
+        function saveScript() { const code=document.getElementById('scriptEditor').value; localStorage.setItem('savedScript',code); addChatMessage('SYSTEM','Скрипт сохранен'); }
+        function loadScriptsLibrary() { const scripts = { 'stalker': '// Режим сталкер\nbot.setMode("stalker", prompt("За кем следить?"));', 'bodyguard': '// Режим телохранитель\nbot.setMode("bodyguard", prompt("Кого охранять?"));', 'diplomat': '// Режим дипломат\nbot.setMode("diplomat");', 'trader': '// Режим торговец\nbot.setMode("trader");' }; const container=document.getElementById('scriptsLibrary'); container.innerHTML=Object.entries(scripts).map(([name,code])=>`<div class="trigger-item"><div><strong>${name}</strong></div><div><button class="btn" onclick="loadScriptToEditor(\`${code.replace(/`/g,'\\`')}\`)">📂 Загрузить</button></div></div>`).join(''); }
+        function loadScriptToEditor(code) { document.getElementById('scriptEditor').value=code; }
+        
+        // ============= ANALYTICS =============
+        function updateAnalytics() { document.getElementById('analyticsTotal').innerText=chatLog.length; document.getElementById('analyticsToday').innerText=chatLog.filter(l=>l.timestamp?.includes(new Date().toLocaleDateString())).length; document.getElementById('analyticsAvg').innerText=Math.floor(chatLog.length/24); const ctx=document.getElementById('heatmapChart')?.getContext('2d'); if(ctx){ if(heatmapChart) heatmapChart.destroy(); heatmapChart=new Chart(ctx,{type:'bar',data:{labels:Array.from({length:24},(_,i)=>`${i}ч`),datasets:[{label:'Активность',data:Array.from({length:24},()=>Math.floor(Math.random()*50)),backgroundColor:'#00d4ff'}]},options:{responsive:true}}); } const container=document.getElementById('botStatsList'); container.innerHTML=bots.map(b=>`<div class="trigger-item"><div><strong>${b.username}</strong><div>Онлайн: ${b.online?'🟢':'🔴'} | Здоровье: ${b.health} | Позиция: ${b.x},${b.z}</div></div></div>`).join(''); }
+        
+        // ============= SETTINGS =============
+        function loadSettings() { document.getElementById('autoReconnect').checked=localStorage.getItem('autoReconnect')!=='false'; document.getElementById('antiKick').checked=localStorage.getItem('antiKick')!=='false'; document.getElementById('notifications').checked=localStorage.getItem('notifications')!=='false'; document.getElementById('sound').checked=localStorage.getItem('sound')!=='false'; document.getElementById('refreshInterval').value=localStorage.getItem('refreshInterval')||5; document.getElementById('telegramToken').value=localStorage.getItem('telegramToken')||''; document.getElementById('discordWebhook').value=localStorage.getItem('discordWebhook')||''; fetch('/api/system/info').then(r=>r.json()).then(d=>{ document.getElementById('systemInfo').innerHTML=`<div>Версия: v6.0</div><div>Ботов: ${d.bots||0}</div><div>Сервер: ${d.server||'N/A'}</div><div>Аптайм: ${Math.floor((d.uptime||0)/3600)}ч</div>`; }); }
+        function saveSettings() { localStorage.setItem('autoReconnect',document.getElementById('autoReconnect').checked); localStorage.setItem('antiKick',document.getElementById('antiKick').checked); localStorage.setItem('notifications',document.getElementById('notifications').checked); localStorage.setItem('sound',document.getElementById('sound').checked); localStorage.setItem('refreshInterval',document.getElementById('refreshInterval').value); addChatMessage('SYSTEM','Настройки сохранены'); }
+        function initTelegram() { const token=document.getElementById('telegramToken').value; localStorage.setItem('telegramToken',token); fetch('/api/telegram/init',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token})}); addChatMessage('SYSTEM','Telegram бот запущен'); }
+        function initDiscord() { const webhook=document.getElementById('discordWebhook').value; localStorage.setItem('discordWebhook',webhook); addChatMessage('SYSTEM','Discord webhook сохранен'); }
+        
+        // ============= CHAT =============
+        function sendMessage() { const input=document.getElementById('chatInput'), msg=input.value.trim(); if(msg){ fetch('/api/chat/send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:msg})}); input.value=''; } }
+        function handleChatKey(e){ if(e.key==='Enter') sendMessage(); }
+        function clearChat() { chatLog=[]; updateChat(); }
+        function updateChat() { const container=document.getElementById('chatMessages'); if(!chatLog.length){container.innerHTML='<div class="empty-state">💭 Добро пожаловать в чат!</div>';return;} container.innerHTML=chatLog.slice(-30).map(msg=>`<div class="chat-message"><span class="chat-author">[${msg.type}]</span> ${msg.message} <span style="font-size:10px;color:var(--text-muted);float:right;">${msg.timestamp||''}</span></div>`).join(''); container.scrollTop=container.scrollHeight; }
+        function addChatMessage(type,message) { chatLog.push({type,message,timestamp:new Date().toLocaleTimeString()}); updateChat(); updateEventsLog(); }
+        function openMessageModal() { fetch('/api/bots').then(r=>r.json()).then(d=>{ const select=document.getElementById('singleBotSelect'); select.innerHTML='<option value="">Выберите бота</option>'; d.bots.forEach(b=>select.innerHTML+=`<option value="${b.id}">${b.username} ${b.online?'🟢':'🔴'}</option>`); }); document.getElementById('messageModal').style.display='flex'; }
+        function sendMessageToBots() { const target=document.getElementById('messageTarget').value, message=document.getElementById('messageText').value.trim(), botId=document.getElementById('singleBotSelect').value; if(!message){alert('Введите сообщение');return;} let url='/api/bots/say-all', body={message}; if(target==='single'&&botId){url=`/api/bot/${botId}/say`;}else if(target==='selected'){if(selectedBots.size===0){alert('Выберите ботов');return;} url='/api/bots/say-selected'; body={botIds:Array.from(selectedBots),message};} fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(()=>{closeModal('messageModal');document.getElementById('messageText').value='';}); }
+        function exportConfig() { const config={bots,triggers,groups,waypoints,templates,schedules,killList,exportDate:new Date().toISOString()}; const blob=new Blob([JSON.stringify(config,null,2)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`iminvisible_config_${Date.now()}.json`; a.click(); addChatMessage('SYSTEM','Конфигурация экспортирована'); }
+        function closeModal(id) { document.getElementById(id).style.display='none'; }
+        
+        // ============= SOCKET =============
+        socket.on('connect',()=>{ console.log('✅ Подключено'); refreshBots(); loadTriggers(); loadGroups(); loadWaypoints(); if(Notification.permission!=='granted'&&Notification.permission!=='denied') Notification.requestPermission(); });
+        socket.on('bot_status',(status)=>{ if(status.bots) bots=status.bots; updateDashboard(); updateBotsList(); update3DMap(); });
+        socket.on('chat',(msg)=>{ if(Array.isArray(msg)) chatLog=msg; else chatLog.push(msg); updateChat(); updateEventsLog(); });
+        socket.on('triggers',(data)=>{ if(data.triggers) triggers=data.triggers; updateTriggersList(); });
+        socket.on('stats',(stats)=>{ combatStats=stats.combat||combatStats; updateDashboard(); updateCombatPage(); });
+        
+        // ============= INIT =============
+        const savedTheme=localStorage.getItem('theme')||'dark'; setTheme(savedTheme);
+        setInterval(refreshBots,5000);
+        setInterval(update3DMap,3000);
+        refreshBots();
+        init3DMap();
+        document.getElementById('searchInput')?.addEventListener('input',()=>updateBotsList());
+        document.getElementById('messageTarget')?.addEventListener('change',function(){ document.getElementById('singleBotDiv').style.display=this.value==='single'?'block':'none'; });
+        window.addEventListener('resize',()=>{ if(renderer) renderer.setSize(document.getElementById('map3d')?.clientWidth||400,400); });
+    </script>
+</body>
+</html>
